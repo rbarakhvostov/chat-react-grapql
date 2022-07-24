@@ -21,7 +21,6 @@ const resolvers = {
   Query: {
     messages: () => messages,
   },
-
   Mutation: {
     postMessage: (parent, {user, content}) => {
       const id = messages.length;
@@ -40,7 +39,7 @@ const server = createServer({
   schema: {
     typeDefs,
     resolvers
-  }
+  },
 })
 
 server.start()
