@@ -3,28 +3,60 @@ import {
   ApolloClient,
   InMemoryCache,
   ApolloProvider,
-  useQuery,
-  gql
+  useSubscription,
+  useMutation,
+  gql,
+  HttpLink,
+  split
 } from '@apollo/client'
+import  { WebSocketLink } from '@apollo/client/link/ws'
+import { getMainDefinition } from '@apollo/client/utilities'
 import { Container, Row, Col, FormInput, Button } from 'shards-react'
 
+const httpLink = new HttpLink({
+  uri: 'http://localhost:4000/graphql',
+})
+
+const webSocketLink = new WebSocketLink({
+  uri: 'ws://localhost:4000/graphql',
+  options: {
+    reconnect: true
+  }
+})
+
+const link = split(
+  ({ query }) => {
+    const definition = getMainDefinition(query)
+
+    return (definition.kind === 'OperationDefinition' && definition.operation === 'subscription')
+  },
+  webSocketLink,
+  httpLink,
+)
+
 const client = new ApolloClient({
-  uri: 'http://0.0.0.0:4000/graphql',
+  link,
   cache: new InMemoryCache(),
-});
+})
 
 const GET_MESSAGES = gql`
-query {
-  messages {
-    id
-    content
-    user
+  subscription {
+    messages {
+      id
+      content
+      user
+    }
   }
-}
+`
+
+const POST_MESSAGE = gql`
+  mutation ($user: String!, $content: String!) {
+    postMessage(user: $user, content: $content)
+  }
 `
 
 const Messages = ({ user }) => {
-  const { data } = useQuery(GET_MESSAGES)
+  const { data } = useSubscription(GET_MESSAGES)
 
   if (!data) {
     return null;
@@ -81,22 +113,28 @@ const Chat = () => {
     content: ''
   })
 
+  const [postMessage] = useMutation(POST_MESSAGE)
+
   const onSend = () => {
-    if (state.content.length) {
+    if (state.content.length && state.user.length) {
+      postMessage({
+        variables: state,
+      })
 
+      setState({
+        ...state, 
+        content: ''
+      })
+    } else {
+      alert('fill in all fields')
     }
-
-    setState({
-      ...state,
-      content: ''
-    })
   }
 
   return (
     <Container>
       <Messages user="Roman" />
       <Row>
-        <Col xs="2" style={{padding: 0}}>
+        <Col xs="2" style={{ padding: 0 }}>
           <FormInput
             label="User"
             value={state.user}
@@ -123,7 +161,7 @@ const Chat = () => {
             }}
           />
         </Col>
-        <Col xs="2" style={{padding: 0}}>
+        <Col xs="2" style={{ padding: 0 }}>
           <Button onClick={() => onSend()}>Send</Button>
         </Col>
       </Row>
